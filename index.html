@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chenyu He - 探索代码与逻辑背后的浩瀚星空</title>
+    <!-- 博客访问量统计：busuanzi -->
+    <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         /* 精简、紧凑的 Mac 风格 UI */
@@ -193,23 +195,23 @@
                 
                 <div class="stats">
                     <div class="stat-item">
-                        <div class="stat-value" data-target="1247">0</div>
+                        <div class="stat-value" id="stat-blog" data-target="0">0</div>
                         <div class="stat-label">博客访问量</div>
                     </div>
                     
                     <div class="stat-item">
-                        <div class="stat-value" data-target="384">0</div>
+                        <div class="stat-value" id="stat-commit" data-target="0">0</div>
                         <div class="stat-label">GitHub 提交</div>
                     </div>
                     
                     <div class="stat-item">
-                        <div class="stat-value" data-target="12">0</div>
+                        <div class="stat-value" id="stat-repo" data-target="0">0</div>
                         <div class="stat-label">项目数量</div>
                     </div>
                     
                     <div class="stat-item">
-                        <div class="stat-value" data-target="96" data-suffix="%">0%</div>
-                        <div class="stat-label">项目完成率</div>
+                        <div class="stat-value" id="stat-follower" data-target="0">0</div>
+                        <div class="stat-label">GitHub 粉丝</div>
                     </div>
                 </div>
                 
@@ -403,13 +405,10 @@
             });
         });
         
-        // 动态 reveal + 数字和技能动画
+        // 动态 reveal + 数字和技能动画 + GitHub 数据
         (function(){
             const ease = t => (--t)*t*t+1;
-
             const formatNumber = n => n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-
-            // 数字计数动画
             function animateNumber(el, target, suffix){
                 const duration = 900;
                 const start = performance.now();
@@ -423,13 +422,57 @@
                 requestAnimationFrame(step);
             }
 
-            // 当元素进入视口时触发动画
+            // 拉取 GitHub 真实数据
+            async function fetchGitHubStats() {
+                const user = 'DanielHe666';
+                try {
+                    // 用户基本信息
+                    const resp = await fetch(`https://api.github.com/users/${user}`);
+                    const data = await resp.json();
+                    // 仓库数
+                    const repo = document.getElementById('stat-repo');
+                    if(repo && data.public_repos) {
+                        repo.setAttribute('data-target', data.public_repos);
+                    }
+                    // 粉丝数
+                    const follower = document.getElementById('stat-follower');
+                    if(follower && data.followers) {
+                        follower.setAttribute('data-target', data.followers);
+                    }
+                    // 近一年提交数（用 GitHub 贡献日历 SVG）
+                    const commit = document.getElementById('stat-commit');
+                    if(commit) {
+                        // 通过抓取贡献 SVG 统计总提交数
+                        fetch(`https://github.com/users/${user}/contributions`).then(r=>r.text()).then(svg=>{
+                            const m = svg.match(/data-count="(\d+)"/g);
+                            let total = 0;
+                            if(m) m.forEach(x=>{ total += parseInt(x.replace(/\D/g,'')); });
+                            commit.setAttribute('data-target', total);
+                        });
+                    }
+                } catch(e) {
+                    // 网络错误等
+                }
+                // 博客访问量（busuanzi）
+                const blog = document.getElementById('stat-blog');
+                function setBlogPV(){
+                    if(window.BUSUANZI && blog){
+                        const pv = window.BUSUANZI.getVal('site_pv');
+                        if(pv && pv>0) blog.setAttribute('data-target', pv);
+                    }
+                }
+                // busuanzi 统计脚本加载后再尝试获取
+                if(typeof window.BUSUANZI !== 'undefined') setBlogPV();
+                else setTimeout(setBlogPV, 1200);
+            }
+            fetchGitHubStats();
+
+            // Reveal 动画
             const obs = new IntersectionObserver((entries, o) => {
                 entries.forEach(entry => {
                     if(!entry.isIntersecting) return;
                     const el = entry.target;
                     el.classList.add('visible');
-
                     // stat 数字
                     if(el.matches('.stat-item') || el.classList.contains('stat-item')){
                         el.querySelectorAll('.stat-value[data-target]').forEach(s => {
@@ -438,23 +481,19 @@
                             animateNumber(s, t, suffix);
                         });
                     }
-
                     // 技能进度
                     el.querySelectorAll && el.querySelectorAll('.skill-level[data-level]').forEach(bar => {
                         const lvl = Number(bar.getAttribute('data-level')) || 0;
                         bar.style.width = lvl + '%';
                     });
-
                     // 单独处理 hero/项目卡片等图片缩放
                     if(el.matches('.project-card')){
                         const img = el.querySelector('.project-image img');
                         if(img) img.style.transform = 'scale(1.02)';
                     }
-
                     o.unobserve(el);
                 });
             },{threshold:0.12,rootMargin:'0px 0px -8% 0px'});
-
             // 把需要 reveal 的元素注册到 observer
             const selectors = ['.hero h1','.hero p','.hero-btns','.mission-card','.dashboard','.stat-item','.skill','.project-card','.about-image','.footer-content'];
             const nodes = document.querySelectorAll(selectors.join(','));
@@ -462,7 +501,6 @@
                 n.classList.add('reveal');
                 obs.observe(n);
             });
-
             // 兼容：如果已经在视口，则立即触发一次
             window.addEventListener('load', ()=>{ nodes.forEach(n=>{ if(n.getBoundingClientRect().top < window.innerHeight) n.classList.add('visible'); }) });
         })();
